@@ -7,6 +7,7 @@ import { Compartment, EditorState, Transaction, type Extension, type StateComman
 import { Decoration, EditorView, keymap, MatchDecorator, ViewPlugin } from '@codemirror/view';
 import { createLivePreviewExtension, externalLinkAt, moveToTableCell, pasteTableCells, refreshLivePreview } from './live-preview';
 import { editorHighlightStyle } from './editor-highlighting';
+import { editorClipboard } from './editor-clipboard';
 import { codeLanguageForFence } from './markdown-code-languages';
 import { imageReferences, localImagePath } from './markdown-assets';
 import { openExternalUrl, registerAsset } from './bridge';
@@ -16,6 +17,7 @@ export interface SourceEditorHandle {
   setSelection(position: number): void;
   getSelectionStart(): number;
   insertMarkdown(markdown: string): void;
+  copyAsMarkdown(): void;
   captureInsertion(): { insert(text: string): void; cancel(): void };
 }
 
@@ -24,6 +26,8 @@ interface Props {
   source: string;
   documentPath: string | null;
   mode: 'source' | 'live';
+  copyMarkdown?: boolean;
+  onCopyError?(): void;
   searchQuery?: string;
   onRequestLink?(currentHref: string): Promise<string | null>;
   onChange(source: string): void;
@@ -52,7 +56,7 @@ function wrapMarkdown(open: string, close: string): StateCommand {
   };
 }
 
-export const CodeMirrorEditor = forwardRef<SourceEditorHandle, Props>(function CodeMirrorEditor({ documentId, documentPath, source, mode, searchQuery = '', onRequestLink, onChange, onImageFiles, onDocumentChange, assetRoots = [], assetRefresh = 0, onImageError }, ref) {
+export const CodeMirrorEditor = forwardRef<SourceEditorHandle, Props>(function CodeMirrorEditor({ documentId, documentPath, source, mode, copyMarkdown = false, onCopyError, searchQuery = '', onRequestLink, onChange, onImageFiles, onDocumentChange, assetRoots = [], assetRefresh = 0, onImageError }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -71,6 +75,9 @@ export const CodeMirrorEditor = forwardRef<SourceEditorHandle, Props>(function C
   const imageScopeRef = useRef('');
   const previewCompartmentRef = useRef(new Compartment());
   const extensionsRef = useRef<Extension[] | null>(null);
+  const clipboardOptionsRef = useRef({ copyMarkdown, onCopyError });
+  clipboardOptionsRef.current = { copyMarkdown, onCopyError };
+  const clipboardRef = useRef<ReturnType<typeof editorClipboard> | null>(null);
   onChangeRef.current = onChange;
   onRequestLinkRef.current = onRequestLink;
   onImageFilesRef.current = onImageFiles;
@@ -78,6 +85,7 @@ export const CodeMirrorEditor = forwardRef<SourceEditorHandle, Props>(function C
 
   useImperativeHandle(ref, () => ({
     focus() { viewRef.current?.focus(); },
+    copyAsMarkdown() { if (viewRef.current) clipboardRef.current?.copyAsMarkdown(viewRef.current); },
     setSelection(position) {
       const view = viewRef.current;
       if (!view) return;
@@ -122,7 +130,14 @@ export const CodeMirrorEditor = forwardRef<SourceEditorHandle, Props>(function C
   useLayoutEffect(() => {
     if (!host.current) return;
     const previewCompartment = previewCompartmentRef.current;
+    const clipboard = editorClipboard({
+      sourceMode: () => currentModeRef.current === 'source',
+      markdownByDefault: () => clipboardOptionsRef.current.copyMarkdown,
+      onError: () => clipboardOptionsRef.current.onCopyError?.(),
+    });
+    clipboardRef.current = clipboard;
     extensionsRef.current = [
+      clipboard.extension,
       markdown({ base: markdownLanguage, codeLanguages: codeLanguageForFence }),
       history(),
       keymap.of([

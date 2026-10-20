@@ -1,3 +1,4 @@
+import { checkEditorClipboard } from './check-editor-clipboard.mjs';
 import { checkDocumentWorkspace } from './check-document-workspace.mjs';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -45,6 +46,8 @@ try {
   checks.push('standalone/project navigation, image insertion, asynchronous tabs, save as and portable exports');
   await checkWindowClose(browser, url);
   checks.push('window close lifecycle with runtime permissions: clean, dirty, cancel, discard, save all and failures');
+  await checkEditorClipboard(browser, url);
+  checks.push('preview plain/HTML/Markdown clipboard, mouse selection, source fidelity, internal paste, cut/undo and persisted copy preference');
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.addInitScript(() => {
     window.openedExternalUrls = [];
