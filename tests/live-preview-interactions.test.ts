@@ -11,6 +11,37 @@ function editor(source: string) {
 }
 
 describe('live preview interactions', () => {
+  it.each(['# 标题', '##   标题', '### \t标题', '###### 标题', '# 标题 ###  ', '## **标题** ##'])('hides heading separators with their markers: %s', heading => {
+    const source = `${heading}\n\n正文`;
+    const state = editor(source).update({ selection: { anchor: source.length } }).state;
+    const decorations = buildLivePreviewDecorations(
+      { state, viewport: { from: 0, to: source.length } } as EditorView, new Map(), null,
+    );
+    let visible = '';
+    let position = 0;
+    decorations.between(0, heading.length, (from, to, decoration) => {
+      if (!decoration.spec.atomic) return;
+      visible += source.slice(position, from);
+      position = to;
+    });
+    visible += source.slice(position, heading.length);
+    expect(visible).toBe('标题');
+    expect(state.doc.toString()).toBe(source);
+  });
+
+  it('keeps heading separators editable on the active line', () => {
+    const source = '##   标题 ##\n\n正文';
+    const state = editor(source).update({ selection: { anchor: 5 } }).state;
+    const decorations = buildLivePreviewDecorations(
+      { state, viewport: { from: 0, to: source.length } } as EditorView, new Map(), null,
+    );
+    const hidden: string[] = [];
+    decorations.between(0, source.length, (from, to, decoration) => {
+      if (decoration.spec.atomic) hidden.push(source.slice(from, to));
+    });
+    expect(hidden).toEqual([]);
+  });
+
   it('recognizes and lazily loads supported fenced-code languages', async () => {
     const typescript = codeLanguageForFence('ts');
     const css = codeLanguageForFence('css');

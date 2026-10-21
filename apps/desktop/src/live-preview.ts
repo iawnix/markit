@@ -829,7 +829,20 @@ export function buildLivePreviewDecorations(view: EditorView, imageUrls: Map<str
           if (!lineIsActive(firstLine)) hide(state.doc.line(firstLine).from, state.doc.line(firstLine).to);
         } else if (!lineIsActive(firstLine)) hide(node.from, node.to);
       } else if (markerNames.has(name) && (inlineMarkerNames.has(name) ? !inlineSyntaxIsActive(node) : !lineIsActive(state.doc.lineAt(node.from).number))) {
-        hide(node.from, node.to);
+        let from = node.from;
+        let to = node.to;
+        if (name === 'HeaderMark' && /^ATXHeading[1-6]$/.test(node.node.parent?.name || '')) {
+          // The separator belongs to the heading syntax too. Leaving it visible
+          // indents the title after its hashes have been hidden.
+          const heading = node.node.parent!;
+          if (from === heading.from) {
+            to += /^[ \t]*/.exec(state.doc.sliceString(to, heading.to))![0].length;
+          } else {
+            from -= /[ \t]*$/.exec(state.doc.sliceString(heading.from, from))![0].length;
+            to += /^[ \t]*/.exec(state.doc.sliceString(to, state.doc.lineAt(to).to))![0].length;
+          }
+        }
+        hide(from, to);
       } else if (name === 'CodeInfo' && !lineIsActive(state.doc.lineAt(node.from).number)) {
         hide(node.from, node.to);
       } else if (name === 'TaskMarker' && !lineIsActive(state.doc.lineAt(node.from).number)) {

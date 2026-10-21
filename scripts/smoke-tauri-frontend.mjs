@@ -1,4 +1,5 @@
 import { checkEditorClipboard } from './check-editor-clipboard.mjs';
+import { checkPreviewStatistics } from './check-preview-statistics.mjs';
 import { checkDocumentWorkspace } from './check-document-workspace.mjs';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -42,6 +43,8 @@ try {
   await waitForServer();
   const executablePath = ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].find(path => existsSync(path));
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
+  await checkPreviewStatistics(browser, url);
+  checks.push('heading preview spacing, editable source and live Chinese/English word counts');
   await checkDocumentWorkspace(browser, url);
   checks.push('standalone/project navigation, image insertion, asynchronous tabs, save as and portable exports');
   await checkWindowClose(browser, url);
